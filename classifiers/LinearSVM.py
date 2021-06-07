@@ -1,0 +1,62 @@
+import numpy
+import scipy.special
+import scipy.optimize
+
+
+def vrow(vec):
+    return vec.reshape(1, -1)
+
+
+def vcol(vec):
+    return vec.reshape(vec.shape[0], 1)
+
+
+class LinearSVM:
+
+    def __init__(self, DTrain, LTrain, K=1, C=0.1, alpha0=None):
+        self.n_samples = DTrain.shape[1]
+        self.K = K
+        self.C = C
+        self.DTrain = numpy.vstack((DTrain, numpy.ones(
+            self.n_samples) * self.K))  # increase K, means decrease the effect of regularization on b bias.
+        self.LTrain = LTrain
+        self.alpha0 = numpy.zeros(self.n_samples) if alpha0 is None else alpha0
+        self.bounds = numpy.array([(0, self.C) for i in range(self.n_samples)])
+        # H = sum of zi * zj * xi * xj
+        self.H = numpy.dot(vcol(2 * self.LTrain - 1), vrow(2 * self.LTrain - 1)) * numpy.dot(self.DTrain.T, self.DTrain)
+        self.w_best, self.alpha = self.compute_params()  # b_best is inside w_best
+
+    def compute_params(self):
+        alpha, f, d = scipy.optimize.fmin_l_bfgs_b(
+            self.dual_SVM,
+            self.alpha0,
+            bounds=self.bounds,
+            factr=1.0
+        )
+        return numpy.dot(self.DTrain, vcol(alpha * (2 * self.LTrain - 1))), alpha  # b_best is inside w_best
+
+    def dual_SVM(self, alpha=None):
+        alpha = self.alpha if alpha is None else alpha
+        return (
+            1 / 2 * numpy.dot(numpy.dot(vrow(alpha), self.H), vcol(alpha))[0, 0] - numpy.sum(alpha),
+            (numpy.dot(self.H, vcol(alpha)) - 1).reshape(-1)
+        )
+
+    def primal_SVM(self):
+        G = 1 - (2 * self.LTrain - 1) * numpy.dot(self.w_best.T, self.DTrain).reshape(-1)
+        zero = numpy.zeros(G.shape[0])
+        maximum = numpy.maximum(zero, G)
+        return 1 / 2 * (self.w_best * self.w_best).sum() + self.C * numpy.sum(maximum)
+
+    def predict(self, DTest, LTest=None):
+        DTest = numpy.vstack((DTest, numpy.ones(DTest.shape[1]) * self.K))
+        scores = numpy.dot(self.w_best.T, DTest).ravel()
+        predicted = (scores > 0).astype(int)
+        err_rate = predicted[predicted != LTest].shape[0] / predicted.shape[0] if LTest is not None else None
+        return predicted, err_rate
+
+    def llr(self, DTest, class0=0, class1=1):
+        DTest = numpy.vstack((DTest, numpy.ones(DTest.shape[1]) * self.K))
+        S = numpy.dot(self.w_best.T, DTest).ravel()
+        llr = S[class0, :] / S[class1, :]
+        return llr
