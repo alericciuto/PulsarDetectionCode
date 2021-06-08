@@ -1,5 +1,6 @@
 import numpy
 import matplotlib.pyplot as plt
+from numpy import inf
 from scipy.stats import norm
 
 from utils import *
@@ -259,9 +260,9 @@ if __name__ == '__main__':
     ])
     classifiers = numpy.array([
         MultivariateGaussianClassifier,
-        # NaiveBayesClassifier,
-        # TiedCovarianceGaussianClassifier,
-        # TiedDiagCovGaussianClassifier
+        NaiveBayesClassifier,
+        TiedCovarianceGaussianClassifier,
+        TiedDiagCovGaussianClassifier
     ])
 
     priors = numpy.array([0.5, 0.1, 0.9])
@@ -277,44 +278,52 @@ if __name__ == '__main__':
         table = numpy.hstack((vcol(classifier_name), mindcf))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
 
+    ##################################################################################
+
     classifier_name = numpy.array([
+        'Log Reg',
         'Log Reg'
     ])
     classifiers = numpy.array([
+        LogisticRegression,
         LogisticRegression
     ])
 
-    priors = numpy.array([0.5, 0.1, 0.9])
     lamb = numpy.array([10 ** i for i in range(-5, 5)])
-    lamb = numpy.array([numpy.linspace(lamb[i], lamb[i+1], 5) for i in range(lamb.shape[0] - 1)]).reshape(-1)
-    mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0], lamb.shape[0]))
-    data = [DTR, DTR_G]  # [DTR_G, DTR_G_PCA_7, DTR_G_PCA_6, DTR_G_PCA_5, DTR]
+    lamb = numpy.array([numpy.linspace(lamb[i], lamb[i + 1], 5) for i in range(lamb.shape[0] - 1)]).reshape(-1)
+    priors = numpy.array([0.5, 0.1, 0.9])
 
-    for d, D in enumerate(data):
-        for i, c in enumerate(classifiers):
-            for j, p in enumerate(priors):
-                print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
-                for k, l in enumerate(lamb):
-                    mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p), 3)
-                    print("min_DCF = " + str(mindcf[i, j]), end='\r')
-                print("\n")
-        table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=0)))
+    try:
+        mindcf = numpy.load('./data/minDCF_LogReg_lamb.npy')
+    except FileNotFoundError:
+        mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0], lamb.shape[0]))
+        data = [DTR, DTR_G]
+
+        for d, D in enumerate(data):
+            for i, c in enumerate(classifiers):
+                for j, p in enumerate(priors):
+                    print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
+                    for k, l in enumerate(lamb):
+                        mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p), 3)
+                        print("min_DCF = " + str(mindcf[i, j]), end='\r')
+                    print()
+            table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
+            print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
+
+        numpy.save('./data/minDCF_LogReg_lamb.npy', mindcf)
+
+    for i in range(mindcf.shape[0]):
+        table = numpy.hstack((vcol(classifier_name[i:i+1]), vrow(mindcf[i].min(axis=1, initial=inf))))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
-
-    for i, c in enumerate(classifiers):
+        plt.figure()
         for j, p in enumerate(priors):
-            print(str(mindcf[i, j, :]))
+            plt.plot(lamb, mindcf[i, j, :], label='minDCF (piT = ' + str(p) + ')')
+        plt.xlabel('λ')
+        plt.ylabel('min DCF')
+        plt.legend()
+        plt.xscale('log')
+        plt.tight_layout()
+        name = 'Raw' if i == 0 else 'Gaussianized'
+        plt.savefig('./plots/mindcf_training/' + name + '_LogReg_lamb.png')
+        plt.show()
 
-    # mindcf[0, 0] = numpy.array([0.815, 0.791, 0.85, 0.747, 0.78, 0.717, 0.638, 0.629, 0.629, 0.629, 0.631, 0.654, 0.799, 0.991])
-    # mindcf[0, 1] = numpy.array([1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 1., 0.999])
-    # mindcf[0, 2] = numpy.array([0.988, 0.995, 0.971, 0.92, 0.962, 0.959, 0.945, 0.942, 0.942, 0.942, 0.934, 0.957, 0.946, 0.996])
-
-    # plt.figure()
-    # for i, p in enumerate(priors):
-    #     plt.plot(lamb, mindcf[0, i, :], label='minDCF (piT = ' + str(p) + ')')
-    # plt.xlabel('λ')
-    # plt.ylabel('min DCF')
-    # plt.legend()
-    # plt.xscale('log')
-    # plt.show()
-    # plt.savefig('./plots/mindcf_training/Raw_LogReg_lamb.png')
