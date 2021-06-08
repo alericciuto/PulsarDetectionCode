@@ -1,15 +1,17 @@
-import numpy
 import scipy.special
 import scipy.optimize
+from utils import *
 
 
 class LogisticRegression:
 
-    def __init__(self, DTrain, LTrain, lamb=1e-3, x0=None):
+    def __init__(self, DTrain, LTrain, lamb=1e-3, x0=None, prior=None):
         self.DTrain = DTrain
         self.LTrain = LTrain
         self.n_classes = len(set(LTrain))
         self.n_samples = self.DTrain.shape[1]
+        self.n_samples_per_class = vcol(numpy.array([LTrain[LTrain == i].shape[0] for i in range(self.n_classes)]))
+        self.prior = [LTrain[LTrain == i].shape[0] / LTrain.shape[0] for i in range(self.n_classes)] if prior is None else prior
         self.n_features = self.DTrain.shape[0]
         self.lamb = lamb
         self.x0 = numpy.zeros((self.n_features + 1) * self.n_classes) if x0 is None else x0
@@ -29,9 +31,12 @@ class LogisticRegression:
         S = numpy.dot(w.T, self.DTrain) + b
         y_log = S - scipy.special.logsumexp(S, axis=0)
         T = numpy.zeros((self.n_classes, self.n_samples))
-        for i in range(self.n_samples):
-            T[self.LTrain[i], i] = 1
-        loss = numpy.sum(T * y_log) / self.n_samples
+        if self.n_classes == 2:  # Avoid loop over classes to improve performance in binary classification
+            T[self.LTrain, numpy.array(self.LTrain == 0, dtype=numpy.int8)] = 1
+        else:
+            for i in range(self.n_classes):
+                T[i, self.LTrain == i] = 1
+        loss = numpy.sum(vcol(numpy.array(self.prior)) * vcol(numpy.sum(T * y_log, axis=1)) / self.n_samples_per_class)
         return self.lamb * (w * w).sum() / 2 - loss
 
     def predict(self, DTest, LTest=None):
