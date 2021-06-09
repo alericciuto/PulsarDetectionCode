@@ -274,8 +274,8 @@ if __name__ == '__main__':
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
             for j, p in enumerate(priors):
-                print("\n" + classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d) + "\n")
-                mindcf[i, j] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, prior=p, gaussianized=d != 4), 3)
+                print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
+                mindcf[i, j] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, prior=p, gaussianized=d != 3), 3)
                 print("min_DCF = " + str(mindcf[i, j]))
         table = numpy.hstack((vcol(classifier_name), mindcf))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
@@ -306,10 +306,12 @@ if __name__ == '__main__':
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
             for j, p in enumerate(priors):
-                print("\n" + classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d) + "\n")
+                print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
                 for k, l in enumerate(lamb):
                     mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p, gaussianized=d != 0), 3)
                     print("min_DCF (classifier=" + str(i) + ", prior=" + str(p) + ", lambda=" + str(l) + ") = " + str(mindcf[i, j, k]))
+                print("\nmin_DCF (classifier=" + str(i) + ", prior=" + str(p) + ") = " + str(mindcf[i, j]))
+
         table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
 
