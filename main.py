@@ -92,15 +92,16 @@ def plot_heatmap(D, folder='heatmap', subtitle='', color='YlGn'):
     plt.show()
 
 
-def gaussianize(X, Z):
+def gaussianize(Z, X):
     # Compute rank transformed features of Z over X (training samples)
-    Y = []
     N = X.shape[1]
     M = Z.shape[1]
-    for i, x in enumerate(X):
-        y = numpy.array([x[Z[i, j] < x].shape[0] for j in range(M)])  # equivalent to sum ones if Z[i, j] < X[i, :]
-        y = (y + 1) / (N + 2)  # this avoid +inf and -inf with ppf
-        Y.append(y)
+
+    Y = numpy.empty((Z.shape[0], M))
+    for j in range(M):
+        Y[:, j] = numpy.array(vcol(Z[:, j]) < X, dtype=numpy.int).sum(axis=1)
+    Y = (Y + 1) / (N + 2)
+
     # Return percent point function (inverse of the cumulative distribution function)
     return norm.ppf(numpy.array(Y))
 
@@ -157,7 +158,7 @@ def compute_confusion_matrix(true, predicted):
     # for i in range(len(true)):
     #     confusion_matrix[predicted[i], true[i]] += 1
 
-    # 6 times speed up with respect to up
+    # 6 times speed up with respect to the previous code
     labels = numpy.hstack((vcol(predicted), vcol(true)))
     for indexes in set(combinations(tuple(list(range(K)) + list(range(K))), K)):
         equals = numpy.array(labels == indexes, dtype=numpy.int8).sum(axis=1) == K
@@ -192,7 +193,7 @@ def min_DCF(llr, labels, prior, cfn, cfp):
     return mindcf
 
 
-def k_fold_min_DCF(D, L, K, Classifier, prior, args=()):
+def k_fold_min_DCF(D, L, K, Classifier, prior, args=(), gaussianized=False):
     if K <= 0 or K > D.shape[1]:
         raise Exception("K-Fold : K should be > 1 and <= " + str(D.shape[1]))
     nTest = int(D.shape[1] / K)
@@ -213,6 +214,10 @@ def k_fold_min_DCF(D, L, K, Classifier, prior, args=()):
         DTE = D[:, idxTest]
         LTR = L[idxTrain]
         LTE = L[idxTest]
+
+        if gaussianized:
+            DTR = gaussianize(DTR, DTR)
+            DTE = gaussianize(DTE, DTR)
 
         classifier = Classifier(DTR, LTR, *args)
         llr[idxTest] = classifier.llr(DTE)
@@ -269,13 +274,13 @@ if __name__ == '__main__':
 
     priors = numpy.array([0.5, 0.1, 0.9])
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0]))
-    data = [DTR, DTR_G]  # [DTR_G, DTR_G_PCA_7, DTR_G_PCA_6, DTR_G_PCA_5, DTR]
+    data = [DTR_G, DTR_G_PCA_7, DTR_G_PCA_6, DTR_G_PCA_5, DTR]
 
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
             for j, p in enumerate(priors):
                 print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
-                mindcf[i, j] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, prior=p), 3)
+                mindcf[i, j] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, prior=p, gaussianized=d != 4), 3)
                 print("min_DCF = " + str(mindcf[i, j]))
         table = numpy.hstack((vcol(classifier_name), mindcf))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
@@ -295,7 +300,7 @@ if __name__ == '__main__':
 
     lamb = numpy.array([10 ** i for i in range(-5, 5)])
     lamb = numpy.array([numpy.linspace(lamb[i], lamb[i + 1], 5) for i in range(lamb.shape[0] - 1)]).reshape(-1)
-    priors = numpy.array([0.5, 0.1, 0.9])
+    priors = numpy.array([0.9])
 
     # try:
     #     mindcf = numpy.load('./data/minDCF_LogReg_lamb.npy')
@@ -308,7 +313,7 @@ if __name__ == '__main__':
             for j, p in enumerate(priors):
                 print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
                 for k, l in enumerate(lamb):
-                    mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p), 3)
+                    mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p, gaussianized=d != 0), 3)
                 print("min_DCF = " + str(mindcf[i, j]))
         table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
@@ -316,7 +321,7 @@ if __name__ == '__main__':
     numpy.save('./data/minDCF_LogReg_lamb.npy', mindcf)
 
     for i in range(mindcf.shape[0]):
-        table = numpy.hstack((vcol(classifier_name[i:i+1]), vrow(mindcf[i].min(axis=1, initial=inf))))
+        table = numpy.hstack((vcol(classifier_name[i:i + 1]), vrow(mindcf[i].min(axis=1, initial=inf))))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
         plt.figure()
         for j, p in enumerate(priors):
@@ -329,4 +334,3 @@ if __name__ == '__main__':
         name = 'Raw' if i == 0 else 'Gaussianized'
         plt.savefig('./plots/mindcf_training/' + name + '_LogReg_lamb.png')
         plt.show()
-
