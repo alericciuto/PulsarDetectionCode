@@ -1,8 +1,6 @@
 import numpy
 import matplotlib.pyplot as plt
 from numpy import inf
-from scipy.stats import norm
-
 from utils import *
 from classifiers.MultivariateGaussianClassifier import *
 from classifiers.NaiveBayesClassifier import *
@@ -12,6 +10,8 @@ from classifiers.LogisticRegression import *
 from classifiers.LinearSVM import *
 from classifiers.KernelSVM import *
 from classifiers.GaussianMixtureModel import *
+from transformers.PCA import *
+from transformers.Gaussianizer import *
 from tabulate import tabulate
 from itertools import combinations
 import time
@@ -92,65 +92,6 @@ def plot_heatmap(D, folder='heatmap', subtitle='', color='YlGn'):
     plt.show()
 
 
-def gaussianize(Z, X):
-    # Compute rank transformed features of Z over X (training samples)
-    N = X.shape[1]
-    M = Z.shape[1]
-
-    Y = numpy.empty((Z.shape[0], M))
-    for j in range(M):
-        Y[:, j] = numpy.array(vcol(Z[:, j]) < X, dtype=numpy.int).sum(axis=1)
-    Y = (Y + 1) / (N + 2)
-
-    # Return percent point function (inverse of the cumulative distribution function)
-    return norm.ppf(numpy.array(Y))
-
-
-def covariance(D):
-    N = D.shape[1]
-    mu = vcol(D.mean(axis=1))
-    DC = D - mu
-    C = numpy.dot(DC, DC.T) / N
-    return C
-
-
-def PCA(D, m):
-    C = covariance(D)
-    s, U = numpy.linalg.eigh(C)
-    P = U[:, ::-1][:, 0:m]
-    DP = numpy.dot(P.T, D)
-    return DP
-
-
-def k_fold(D, L, K, Classifier, prior):
-    if K <= 1 or K > D.shape[1]:
-        raise Exception("K-Fold : K should be > 1 and <= " + str(D.shape[1]))
-    nTest = int(D.shape[1] / K)
-    nTrain = D.shape[1] - nTest
-    numpy.random.seed(0)
-    idx = numpy.random.permutation(D.shape[1])
-    # duplicate idx
-    idx = numpy.concatenate((idx, idx))
-
-    n_classes = len(set(L))
-    errors = 0
-    for i in range(K):
-        start = i * nTest
-        idxTrain = idx[start: start + nTrain]
-        idxTest = idx[start + nTrain: start + nTrain + nTest]
-
-        DTR = D[:, idxTrain]
-        DTE = D[:, idxTest]
-        LTR = L[idxTrain]
-        LTE = L[idxTest]
-
-        classifier = Classifier(DTrain=DTR, LTrain=LTR)
-        predicted, _ = classifier.predict(DTest=DTE, LTest=LTE, prior=prior)
-        errors += predicted[LTE != predicted].shape[0]
-
-    return errors / (nTest * K)
-
-
 def compute_confusion_matrix(true, predicted):
     K = numpy.unique(numpy.concatenate((true, predicted))).size
     confusion_matrix = numpy.zeros((K, K), dtype=numpy.int64)
@@ -193,7 +134,7 @@ def min_DCF(llr, labels, prior, cfn, cfp):
     return mindcf
 
 
-def k_fold_min_DCF(D, L, K, Classifier, prior, args=(), gaussianized=False):
+def k_fold_min_DCF(D, L, K, Classifier, prior, class_args=(), transformers=[], transf_args=[]):
     if K <= 0 or K > D.shape[1]:
         raise Exception("K-Fold : K should be > 1 and <= " + str(D.shape[1]))
     nTest = int(D.shape[1] / K)
@@ -215,11 +156,12 @@ def k_fold_min_DCF(D, L, K, Classifier, prior, args=(), gaussianized=False):
         LTR = L[idxTrain]
         LTE = L[idxTest]
 
-        if gaussianized:
-            DTR = gaussianize(DTR, DTR)
-            DTE = gaussianize(DTE, DTR)
+        for j, T in enumerate(transformers):
+            transformer = T().fit(DTR, *transf_args[j])
+            DTR = transformer.transform(DTR)
+            DTE = transformer.transform(DTE)
 
-        classifier = Classifier(DTR, LTR, *args)
+        classifier = Classifier(DTR, LTR, *class_args)
         llr[idxTest] = classifier.llr(DTE)
 
     mindcf = min_DCF(llr, L, prior, 1, 1)
@@ -235,7 +177,7 @@ if __name__ == '__main__':
     try:
         DTR_G = numpy.load('./data/TrainGAU.npy')
     except FileNotFoundError:
-        DTR_G = gaussianize(DTR, DTR)
+        DTR_G = Gaussianizer().fit(DTR).transform(DTR)
         numpy.save('./data/TrainGAU.npy', DTR_G)
 
     if print_plots:
@@ -249,11 +191,8 @@ if __name__ == '__main__':
         plot_heatmap(DTR[:, LTR == 1], subtitle='pulsar', color='Blues')
         plot_heatmap(DTR[:, LTR == 0], subtitle='not_pulsar', color='Greens')
 
-    # print(k_fold(DTR_PCA_4, LTR, 5, MultivariateGaussianClassifier, prior=vcol(numpy.array([0.1, 0.9]))))
-    # print(k_fold(DTR_PCA_4, LTR, 5, NaiveBayesClassifier, prior=vcol(numpy.array([0.1, 0.9]))))
-    # print(k_fold(DTR_PCA_4, LTR, 5, TiedCovarianceGaussianClassifier, prior=vcol(numpy.array([0.1, 0.9]))))
-    # print(k_fold(DTR_PCA_4, LTR, 5, TiedDiagCovGaussianClassifier, prior=vcol(numpy.array([0.1, 0.9]))))
-
+    #################################################################################
+    
     classifier_name = numpy.array([
         'Full-Cov',
         'Diag-Cov',
@@ -269,13 +208,36 @@ if __name__ == '__main__':
 
     priors = numpy.array([0.5, 0.1, 0.9])
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0]))
-    data = [DTR, PCA(DTR, 7), PCA(DTR, 6), DTR]
+    data = [DTR, DTR, DTR, DTR, DTR, DTR]
+    transformers = [
+        [Gaussianizer],
+        [Gaussianizer, PCA],
+        [Gaussianizer, PCA],
+        [Gaussianizer, PCA],
+        [],
+        [PCA]
+    ]
+    transf_args = [
+        [()],
+        [(), (7,)],
+        [(), (6,)],
+        [(), (5,)],
+        [()],
+        [(7,)]
+    ]
 
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
             for j, p in enumerate(priors):
                 print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
-                mindcf[i, j] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, prior=p, gaussianized=d != 3), 3)
+                mindcf[i, j] = round(
+                    k_fold_min_DCF(
+                        D, LTR, K=5,
+                        Classifier=c,
+                        prior=p,
+                        transformers=transformers[i],
+                        transf_args=transf_args[i]
+                    ), 3)
                 print("min_DCF = " + str(mindcf[i, j]))
         table = numpy.hstack((vcol(classifier_name), mindcf))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
@@ -292,6 +254,14 @@ if __name__ == '__main__':
         LogisticRegression,
         LogisticRegression
     ])
+    transformers = [
+        [Gaussianizer],
+        []
+    ]
+    transf_args = [
+        [()],
+        [()]
+    ]
 
     lamb = numpy.array([10 ** i for i in range(-6, 6)])
     lamb = numpy.array([numpy.linspace(lamb[i], lamb[i + 1], 10) for i in range(lamb.shape[0] - 1)]).reshape(-1)
@@ -301,15 +271,24 @@ if __name__ == '__main__':
     #     mindcf = numpy.load('./data/minDCF_LogReg_lamb.npy')
     # except FileNotFoundError:
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0], lamb.shape[0]))
-    data = [DTR, DTR_G]
+    data = [DTR, DTR]
 
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
             for j, p in enumerate(priors):
                 print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
                 for k, l in enumerate(lamb):
-                    mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p, gaussianized=d != 0), 3)
-                    print("min_DCF (classifier=" + str(i) + ", prior=" + str(p) + ", lambda=" + str(l) + ") = " + str(mindcf[i, j, k]))
+                    mindcf[i, j, k] = round(
+                        k_fold_min_DCF(
+                            D, LTR, K=5,
+                            Classifier=c,
+                            class_args=(l,),
+                            prior=p,
+                            transformers=transformers[i],
+                            transf_args=transf_args[i]
+                        ), 3)
+                    print("min_DCF (classifier=" + str(i) + ", prior=" + str(p) + ", lambda=" + str(l) + ") = " + str(
+                        mindcf[i, j, k]))
                 print("\nmin_DCF (classifier=" + str(i) + ", prior=" + str(p) + ") = " + str(mindcf[i, j]))
 
         table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))

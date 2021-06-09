@@ -16,6 +16,14 @@ def GAU_pdf(x, mu, var):
            numpy.exp(- ((x - mu) ** 2) / (2 * var))
 
 
+def covariance(D):
+    N = D.shape[1]
+    mu = vcol(D.mean(axis=1))
+    DC = D - mu
+    C = numpy.dot(DC, DC.T) / N
+    return C
+
+
 def GAU_logpdf(x, mu, var):
     D = x.shape[1]
     invC = numpy.linalg.inv(var)
@@ -38,6 +46,35 @@ def logpdf_GAU_ND(x, mu, C):
                         logDetC / 2 - \
                         (numpy.dot((x - mu).T, invC).T * (x - mu)).sum(axis=0) / 2
     return resultWithoutDiag
+
+
+def k_fold_err_rate(D, L, K, Classifier, prior):
+    if K <= 1 or K > D.shape[1]:
+        raise Exception("K-Fold : K should be > 1 and <= " + str(D.shape[1]))
+    nTest = int(D.shape[1] / K)
+    nTrain = D.shape[1] - nTest
+    numpy.random.seed(0)
+    idx = numpy.random.permutation(D.shape[1])
+    # duplicate idx
+    idx = numpy.concatenate((idx, idx))
+
+    n_classes = len(set(L))
+    errors = 0
+    for i in range(K):
+        start = i * nTest
+        idxTrain = idx[start: start + nTrain]
+        idxTest = idx[start + nTrain: start + nTrain + nTest]
+
+        DTR = D[:, idxTrain]
+        DTE = D[:, idxTest]
+        LTR = L[idxTrain]
+        LTE = L[idxTest]
+
+        classifier = Classifier(DTrain=DTR, LTrain=LTR)
+        predicted, _ = classifier.predict(DTest=DTE, LTest=LTE, prior=prior)
+        errors += predicted[LTE != predicted].shape[0]
+
+    return errors / (nTest * K)
 
 
 def plot_dens_gmm(data, gmm):
