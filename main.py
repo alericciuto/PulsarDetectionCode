@@ -192,7 +192,7 @@ if __name__ == '__main__':
         plot_heatmap(DTR[:, LTR == 0], subtitle='not_pulsar', color='Greens')
 
     #################################################################################
-    
+
     classifier_name = numpy.array([
         'Full-Cov',
         'Diag-Cov',
@@ -208,22 +208,22 @@ if __name__ == '__main__':
 
     priors = numpy.array([0.5, 0.1, 0.9])
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0]))
-    data = [DTR, DTR, DTR, DTR, DTR, DTR]
+    data = [DTR]
     transformers = [
-        [Gaussianizer],
-        [Gaussianizer, PCA],
-        [Gaussianizer, PCA],
-        [Gaussianizer, PCA],
-        [],
+        # [Gaussianizer],
+        # [Gaussianizer, PCA],
+        # [Gaussianizer, PCA],
+        # [Gaussianizer, PCA],
+        # [],
         [PCA]
     ]
     transf_args = [
-        [()],
-        [(), (7,)],
-        [(), (6,)],
-        [(), (5,)],
-        [()],
-        [(7,)]
+        # [()],
+        # [(), (7,)],
+        # [(), (6,)],
+        # [(), (5,)],
+        # [()],
+        [(4,)]
     ]
 
     for d, D in enumerate(data):
@@ -235,8 +235,8 @@ if __name__ == '__main__':
                         D, LTR, K=5,
                         Classifier=c,
                         prior=p,
-                        transformers=transformers[i],
-                        transf_args=transf_args[i]
+                        transformers=transformers[d],
+                        transf_args=transf_args[d]
                     ), 3)
                 print("min_DCF = " + str(mindcf[i, j]))
         table = numpy.hstack((vcol(classifier_name), mindcf))
@@ -284,8 +284,8 @@ if __name__ == '__main__':
                             Classifier=c,
                             class_args=(l,),
                             prior=p,
-                            transformers=transformers[i],
-                            transf_args=transf_args[i]
+                            transformers=transformers[d],
+                            transf_args=transf_args[d]
                         ), 3)
                     print("min_DCF (classifier=" + str(i) + ", prior=" + str(p) + ", lambda=" + str(l) + ") = " + str(
                         mindcf[i, j, k]))
