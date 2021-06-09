@@ -249,11 +249,6 @@ if __name__ == '__main__':
         plot_heatmap(DTR[:, LTR == 1], subtitle='pulsar', color='Blues')
         plot_heatmap(DTR[:, LTR == 0], subtitle='not_pulsar', color='Greens')
 
-    DTR_G_PCA_7 = PCA(DTR_G, 7)
-    DTR_G_PCA_6 = PCA(DTR_G, 6)
-    DTR_G_PCA_5 = PCA(DTR_G, 5)
-    DTR_G_PCA_4 = PCA(DTR_G, 4)
-
     # print(k_fold(DTR_PCA_4, LTR, 5, MultivariateGaussianClassifier, prior=vcol(numpy.array([0.1, 0.9]))))
     # print(k_fold(DTR_PCA_4, LTR, 5, NaiveBayesClassifier, prior=vcol(numpy.array([0.1, 0.9]))))
     # print(k_fold(DTR_PCA_4, LTR, 5, TiedCovarianceGaussianClassifier, prior=vcol(numpy.array([0.1, 0.9]))))
@@ -274,12 +269,12 @@ if __name__ == '__main__':
 
     priors = numpy.array([0.5, 0.1, 0.9])
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0]))
-    data = [DTR_G, DTR_G_PCA_7, DTR_G_PCA_6, DTR_G_PCA_5, DTR]
+    data = [DTR, PCA(DTR, 7), PCA(DTR, 6), DTR]
 
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
             for j, p in enumerate(priors):
-                print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
+                print("\n" + classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d) + "\n")
                 mindcf[i, j] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, prior=p, gaussianized=d != 4), 3)
                 print("min_DCF = " + str(mindcf[i, j]))
         table = numpy.hstack((vcol(classifier_name), mindcf))
@@ -298,9 +293,9 @@ if __name__ == '__main__':
         LogisticRegression
     ])
 
-    lamb = numpy.array([10 ** i for i in range(-5, 5)])
-    lamb = numpy.array([numpy.linspace(lamb[i], lamb[i + 1], 5) for i in range(lamb.shape[0] - 1)]).reshape(-1)
-    priors = numpy.array([0.9])
+    lamb = numpy.array([10 ** i for i in range(-6, 6)])
+    lamb = numpy.array([numpy.linspace(lamb[i], lamb[i + 1], 10) for i in range(lamb.shape[0] - 1)]).reshape(-1)
+    priors = numpy.array([0.5, 0.1, 0.9])
 
     # try:
     #     mindcf = numpy.load('./data/minDCF_LogReg_lamb.npy')
@@ -311,10 +306,10 @@ if __name__ == '__main__':
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
             for j, p in enumerate(priors):
-                print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
+                print("\n" + classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d) + "\n")
                 for k, l in enumerate(lamb):
                     mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p, gaussianized=d != 0), 3)
-                print("min_DCF = " + str(mindcf[i, j]))
+                    print("min_DCF (classifier=" + str(i) + ", prior=" + str(p) + ", lambda=" + str(l) + ") = " + str(mindcf[i, j, k]))
         table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
 
@@ -325,7 +320,7 @@ if __name__ == '__main__':
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
         plt.figure()
         for j, p in enumerate(priors):
-            plt.plot(lamb, mindcf[i, j, :], label='minDCF (piT = ' + str(p) + ')')
+            plt.plot(lamb, mindcf[i, j, :], label='minDCF (π = ' + str(p) + ')')
         plt.xlabel('λ')
         plt.ylabel('min DCF')
         plt.legend()
