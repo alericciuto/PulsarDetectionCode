@@ -183,7 +183,7 @@ def min_DCF(llr, labels, prior, cfn, cfp):
     scores = llr  # numpy.sort(llr)  # without sort improve performance
 
     mindcf = None
-    for threshold in scores:
+    for i, threshold in enumerate(scores):
         predicted = 0 + (llr > threshold)
         confusion_matrix_min_dcf = compute_confusion_matrix(labels, predicted)
         DCF_ = DCF(prior, cfn, cfp, confusion_matrix_min_dcf)
@@ -203,7 +203,7 @@ def k_fold_min_DCF(D, L, K, Classifier, prior, args=()):
     idx = numpy.concatenate((idx, idx))
 
     n_classes = len(set(L))
-    mindcf = 0
+    llr = numpy.zeros(D.shape[1])
     for i in range(K):
         start = i * nTest
         idxTrain = idx[start: start + nTrain]
@@ -215,9 +215,11 @@ def k_fold_min_DCF(D, L, K, Classifier, prior, args=()):
         LTE = L[idxTest]
 
         classifier = Classifier(DTR, LTR, *args)
-        mindcf += min_DCF(classifier.llr(DTE), LTE, prior, 1, 1)
+        llr[idxTest] = classifier.llr(DTE)
 
-    return mindcf / K
+    mindcf = min_DCF(llr, L, prior, 1, 1)
+
+    return mindcf
 
 
 if __name__ == '__main__':
@@ -267,7 +269,7 @@ if __name__ == '__main__':
 
     priors = numpy.array([0.5, 0.1, 0.9])
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0]))
-    data = []  # [DTR, DTR_G]  # [DTR_G, DTR_G_PCA_7, DTR_G_PCA_6, DTR_G_PCA_5, DTR]
+    data = [DTR, DTR_G]  # [DTR_G, DTR_G_PCA_7, DTR_G_PCA_6, DTR_G_PCA_5, DTR]
 
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
@@ -277,6 +279,8 @@ if __name__ == '__main__':
                 print("min_DCF = " + str(mindcf[i, j]))
         table = numpy.hstack((vcol(classifier_name), mindcf))
         print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
+
+    numpy.save('./data/minDCF_GAU_models.npy', mindcf)
 
     ##################################################################################
 
@@ -293,24 +297,23 @@ if __name__ == '__main__':
     lamb = numpy.array([numpy.linspace(lamb[i], lamb[i + 1], 5) for i in range(lamb.shape[0] - 1)]).reshape(-1)
     priors = numpy.array([0.5, 0.1, 0.9])
 
-    try:
-        mindcf = numpy.load('./data/minDCF_LogReg_lamb.npy')
-    except FileNotFoundError:
-        mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0], lamb.shape[0]))
-        data = [DTR, DTR_G]
+    # try:
+    #     mindcf = numpy.load('./data/minDCF_LogReg_lamb.npy')
+    # except FileNotFoundError:
+    mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0], lamb.shape[0]))
+    data = [DTR, DTR_G]
 
-        for d, D in enumerate(data):
-            for i, c in enumerate(classifiers):
-                for j, p in enumerate(priors):
-                    print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
-                    for k, l in enumerate(lamb):
-                        mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p), 3)
-                        print("min_DCF = " + str(mindcf[i, j]), end='\r')
-                    print()
-            table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
-            print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
+    for d, D in enumerate(data):
+        for i, c in enumerate(classifiers):
+            for j, p in enumerate(priors):
+                print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
+                for k, l in enumerate(lamb):
+                    mindcf[i, j, k] = round(k_fold_min_DCF(D, LTR, K=5, Classifier=c, args=(l, None,), prior=p), 3)
+                print("min_DCF = " + str(mindcf[i, j]))
+        table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
+        print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
 
-        numpy.save('./data/minDCF_LogReg_lamb.npy', mindcf)
+    numpy.save('./data/minDCF_LogReg_lamb.npy', mindcf)
 
     for i in range(mindcf.shape[0]):
         table = numpy.hstack((vcol(classifier_name[i:i+1]), vrow(mindcf[i].min(axis=1, initial=inf))))
