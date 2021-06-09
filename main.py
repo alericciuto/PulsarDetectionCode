@@ -208,23 +208,28 @@ if __name__ == '__main__':
 
     priors = numpy.array([0.5, 0.1, 0.9])
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0]))
-    data = [DTR]
+    data = [DTR for i in range(6)]
     transformers = [
-        # [Gaussianizer],
-        # [Gaussianizer, PCA],
-        # [Gaussianizer, PCA],
-        # [Gaussianizer, PCA],
-        # [],
+        [Gaussianizer],
+        [Gaussianizer, PCA],
+        [Gaussianizer, PCA],
+        [Gaussianizer, PCA],
+        [],
         [PCA]
     ]
     transf_args = [
-        # [()],
-        # [(), (7,)],
-        # [(), (6,)],
-        # [(), (5,)],
-        # [()],
+        [()],
+        [(), (7,)],
+        [(), (6,)],
+        [(), (5,)],
+        [()],
         [(4,)]
     ]
+
+    if len(data) != len(transformers) or len(transformers) != len(transf_args):
+        raise Exception("Length of data/transformers/transf_args incorrect")
+    elif classifiers.shape[0] != classifier_name.shape[0]:
+        raise Exception("Length of classifiers/classifier_name incoherent")
 
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
@@ -271,7 +276,12 @@ if __name__ == '__main__':
     #     mindcf = numpy.load('./data/minDCF_LogReg_lamb.npy')
     # except FileNotFoundError:
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0], lamb.shape[0]))
-    data = [DTR, DTR]
+    data = [DTR for i in range(2)]
+
+    if len(data) != len(transformers) or len(transformers) != len(transf_args):
+        raise Exception("Length of data/transformers/transf_args incoherent")
+    elif classifiers.shape[0] != classifier_name.shape[0]:
+        raise Exception("Length of classifiers/classifier_name incoherent")
 
     for d, D in enumerate(data):
         for i, c in enumerate(classifiers):
