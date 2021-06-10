@@ -183,7 +183,7 @@ if __name__ == '__main__':
     # DTR, _, LTR, _ = sklearn.model_selection.train_test_split(DTR.T, LTR, train_size=1 / 8, random_state=42)
     # DTR = DTR.T
 
-    print_plots = True
+    print_plots = False
     load_precomputed_data = [False, False, False]  # [False, False, False]
     store_computed_data = [True, True, True]  # [True, True, True]
 
