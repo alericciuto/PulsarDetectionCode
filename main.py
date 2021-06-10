@@ -178,19 +178,6 @@ def gaussianize(D):
 if __name__ == '__main__':
     DTR, LTR = load_data('./data/Train.txt')
 
-    # with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
-    #     start = time.perf_counter()
-    #     results = []
-    #     for i in range(5):
-    #         results.append(executor.submit(gaussianize, DTR))
-    # print(time.perf_counter() - start)
-    #
-    # start = time.perf_counter()
-    # results = []
-    # for i in range(5):
-    #     results.append(gaussianize(DTR))
-    # print(time.perf_counter() - start)
-
     print_plots = False
 
     try:
@@ -227,7 +214,7 @@ if __name__ == '__main__':
 
     priors = numpy.array([0.5, 0.1, 0.9])
     mindcf = numpy.zeros((classifiers.shape[0], priors.shape[0]))
-    data = [DTR for i in range(6)]
+    data = [DTR for i in range(1)]
     transformers = [
         [Gaussianizer],
         [Gaussianizer, PCA],
@@ -252,14 +239,14 @@ if __name__ == '__main__':
 
     for d, D in enumerate(data):
         results = []
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ProcessPoolExecutor() as executor:
             for i, c in enumerate(classifiers):
                 for j, p in enumerate(priors):
                     print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
                     results.append(executor.submit(k_fold_min_DCF, D, LTR, 5, c, p, (), transformers[d], transf_args[d]))
                     # print("min_DCF = " + str(mindcf[i, j]))
-            for r in tqdm(results):
-                mindcf[numpy.unravel_index(i, mindcf.shape, 'F')] = round(r.result(), 3)
+            for i, r in enumerate(tqdm(results)):
+                mindcf[numpy.unravel_index(i, mindcf.shape, 'C')] = round(r.result(), 3)
             table = numpy.hstack((vcol(classifier_name), mindcf))
             print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
 
@@ -301,7 +288,7 @@ if __name__ == '__main__':
 
     for d, D in enumerate(data):
         results = []
-        with concurrent.futures.ThreadPoolExecutor() as executor:
+        with concurrent.futures.ProcessPoolExecutor() as executor:
             for i, c in enumerate(classifiers):
                 for j, p in enumerate(priors):
                     print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
@@ -321,8 +308,8 @@ if __name__ == '__main__':
                     #     print("min_DCF (classifier=" + str(i) + ", prior=" + str(p) + ", lambda=" + str(l) + ") = " + str(
                     #         mindcf[i, j, k]))
                     # print("\nmin_DCF (classifier=" + str(i) + ", prior=" + str(p) + ") = " + str(mindcf[i, j]))
-            for r in tqdm(results):
-                mindcf[numpy.unravel_index(i, mindcf.shape, 'F')] = round(r.result(), 3)
+            for i, r in enumerate(tqdm(results)):
+                mindcf[numpy.unravel_index(i, mindcf.shape, 'C')] = round(r.result(), 3)
             table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
             print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
 
