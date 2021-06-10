@@ -1,19 +1,11 @@
-import numpy
 import scipy.special
 import scipy.optimize
-
-
-def vrow(vec):
-    return vec.reshape(1, -1)
-
-
-def vcol(vec):
-    return vec.reshape(vec.shape[0], 1)
+from utils import *
 
 
 class LinearSVM:
 
-    def __init__(self, DTrain, LTrain, K=1, C=0.1, alpha0=None):
+    def __init__(self, DTrain, LTrain, K=1, C=0.1, alpha0=None, prior=None):
         self.n_samples = DTrain.shape[1]
         self.K = K
         self.C = C
@@ -21,7 +13,14 @@ class LinearSVM:
             self.n_samples) * self.K))  # increase K, means decrease the effect of regularization on b bias.
         self.LTrain = LTrain
         self.alpha0 = numpy.zeros(self.n_samples) if alpha0 is None else alpha0
-        self.bounds = numpy.array([(0, self.C) for i in range(self.n_samples)])
+        if prior is not None:
+            emp_prior_F = DTrain[:, LTrain == 0].shape[1] / DTrain.shape[1]
+            emp_prior_T = DTrain[:, LTrain == 1].shape[1] / DTrain.shape[1]
+            Cf = self.C * (1 - prior) / emp_prior_F
+            Ct = self.C * prior / emp_prior_T
+        else:
+            Cf = Ct = C
+        self.bounds = numpy.array([(0, Cf if LTrain[i] == 0 else Ct) for i in range(self.n_samples)])
         # H = sum of zi * zj * xi * xj
         self.H = numpy.dot(vcol(2 * self.LTrain - 1), vrow(2 * self.LTrain - 1)) * numpy.dot(self.DTrain.T, self.DTrain)
         self.w_best, self.alpha = self.compute_params()  # b_best is inside w_best
