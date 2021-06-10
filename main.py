@@ -15,6 +15,8 @@ from transformers.Gaussianizer import *
 from tabulate import tabulate
 from itertools import combinations
 import time
+import concurrent.futures
+from tqdm import tqdm
 
 labels_map = {
     0: 'Not a Pulsar',
@@ -169,8 +171,25 @@ def k_fold_min_DCF(D, L, K, Classifier, prior, class_args=(), transformers=[], t
     return mindcf
 
 
+def gaussianize(D):
+    return Gaussianizer().fit(D).transform(D)
+
+
 if __name__ == '__main__':
     DTR, LTR = load_data('./data/Train.txt')
+
+    # with concurrent.futures.ThreadPoolExecutor(max_workers=10) as executor:
+    #     start = time.perf_counter()
+    #     results = []
+    #     for i in range(5):
+    #         results.append(executor.submit(gaussianize, DTR))
+    # print(time.perf_counter() - start)
+    #
+    # start = time.perf_counter()
+    # results = []
+    # for i in range(5):
+    #     results.append(gaussianize(DTR))
+    # print(time.perf_counter() - start)
 
     print_plots = False
 
@@ -232,20 +251,17 @@ if __name__ == '__main__':
         raise Exception("Length of classifiers/classifier_name incoherent")
 
     for d, D in enumerate(data):
-        for i, c in enumerate(classifiers):
-            for j, p in enumerate(priors):
-                print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
-                mindcf[i, j] = round(
-                    k_fold_min_DCF(
-                        D, LTR, K=5,
-                        Classifier=c,
-                        prior=p,
-                        transformers=transformers[d],
-                        transf_args=transf_args[d]
-                    ), 3)
-                print("min_DCF = " + str(mindcf[i, j]))
-        table = numpy.hstack((vcol(classifier_name), mindcf))
-        print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
+        results = []
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for i, c in enumerate(classifiers):
+                for j, p in enumerate(priors):
+                    print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
+                    results.append(executor.submit(k_fold_min_DCF, D, LTR, 5, c, p, (), transformers[d], transf_args[d]))
+                    # print("min_DCF = " + str(mindcf[i, j]))
+            for r in tqdm(results):
+                mindcf[numpy.unravel_index(i, mindcf.shape, 'F')] = round(r.result(), 3)
+            table = numpy.hstack((vcol(classifier_name), mindcf))
+            print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
 
     numpy.save('./data/minDCF_GAU_models.npy', mindcf)
 
@@ -284,25 +300,31 @@ if __name__ == '__main__':
         raise Exception("Length of classifiers/classifier_name incoherent")
 
     for d, D in enumerate(data):
-        for i, c in enumerate(classifiers):
-            for j, p in enumerate(priors):
-                print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
-                for k, l in enumerate(lamb):
-                    mindcf[i, j, k] = round(
-                        k_fold_min_DCF(
-                            D, LTR, K=5,
-                            Classifier=c,
-                            class_args=(l,),
-                            prior=p,
-                            transformers=transformers[d],
-                            transf_args=transf_args[d]
-                        ), 3)
-                    print("min_DCF (classifier=" + str(i) + ", prior=" + str(p) + ", lambda=" + str(l) + ") = " + str(
-                        mindcf[i, j, k]))
-                print("\nmin_DCF (classifier=" + str(i) + ", prior=" + str(p) + ") = " + str(mindcf[i, j]))
-
-        table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
-        print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
+        results = []
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            for i, c in enumerate(classifiers):
+                for j, p in enumerate(priors):
+                    print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
+                    for k, l in enumerate(lamb):
+                        results.append(
+                            executor.submit(k_fold_min_DCF, D, LTR, 5, c, p, (l,), transformers[d], transf_args[d])
+                        )
+                        # mindcf[i, j, k] = round(
+                        #     k_fold_min_DCF(
+                        #         D, LTR, K=5,
+                        #         Classifier=c,
+                        #         class_args=(l,),
+                        #         prior=p,
+                        #         transformers=transformers[d],
+                        #         transf_args=transf_args[d]
+                        #     ), 3)
+                    #     print("min_DCF (classifier=" + str(i) + ", prior=" + str(p) + ", lambda=" + str(l) + ") = " + str(
+                    #         mindcf[i, j, k]))
+                    # print("\nmin_DCF (classifier=" + str(i) + ", prior=" + str(p) + ") = " + str(mindcf[i, j]))
+            for r in tqdm(results):
+                mindcf[numpy.unravel_index(i, mindcf.shape, 'F')] = round(r.result(), 3)
+            table = numpy.hstack((vcol(classifier_name), mindcf.min(axis=2, initial=inf)))
+            print(tabulate(table, headers=[""] + list(priors), tablefmt='fancy_grid'))
 
     numpy.save('./data/minDCF_LogReg_lamb.npy', mindcf)
 
