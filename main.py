@@ -184,7 +184,7 @@ if __name__ == '__main__':
     # DTR = DTR.T
 
     print_plots = True
-    load_precomputed_data = [True, True, True]  # [False, False, False]
+    load_precomputed_data = [False, False, False]  # [False, False, False]
     store_computed_data = [True, True, True]  # [True, True, True]
 
     if load_precomputed_data[0]:
