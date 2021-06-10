@@ -5,7 +5,7 @@ from utils import *
 
 class LinearSVM:
 
-    def __init__(self, DTrain, LTrain, K=1, C=0.1, alpha0=None, prior=None):
+    def __init__(self, DTrain, LTrain, K=1, C=0.1, prior=None, alpha0=None):
         self.n_samples = DTrain.shape[1]
         self.K = K
         self.C = C

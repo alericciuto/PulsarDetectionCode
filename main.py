@@ -377,7 +377,7 @@ if __name__ == '__main__':
                         print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
                         for k, C in enumerate(Ci):
                             results.append(
-                                executor.submit(k_fold_min_DCF, D, LTR, 5, c, p, (1, C), transformers[d], transf_args[d]))
+                                executor.submit(k_fold_min_DCF, D, LTR, 5, c, p, (1, C, p, None,), transformers[d], transf_args[d]))
             for i, r in enumerate(tqdm(results)):
                 mindcf[numpy.unravel_index(i, mindcf.shape, 'C')] = round(r.result(), 3)
             table = numpy.hstack((vcol(classifier_name), mindcf[d].min(axis=2, initial=inf)))
