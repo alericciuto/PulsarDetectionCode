@@ -21,4 +21,6 @@ class Gaussianizer:
             zj = vcol(Z[:, j])
             Y[:, j] = numpy.array(zj < self.D, dtype=numpy.int).sum(axis=1)
         Y = (Y + 1) / (self.N + 2)
+        print(Y)
+        print(norm.ppf(Y))
         return norm.ppf(Y)

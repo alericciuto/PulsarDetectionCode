@@ -184,8 +184,8 @@ if __name__ == '__main__':
     # DTR = DTR.T
 
     print_plots = False
-    load_precomputed_data = [True, True, True, False]  # [False, False, False]
-    store_computed_data = [False, False, False, True]  # [True, True, True]
+    load_precomputed_data = [False, False, False, False]  # [False, False, False, False]
+    store_computed_data = [True, True, True, True]  # [True, True, True, True]
 
     if load_precomputed_data[0]:
         DTR_G = numpy.load('./data/TrainGAU.npy')
@@ -258,6 +258,14 @@ if __name__ == '__main__':
                     for j, p in enumerate(priors):
                         print(classifier_name[i] + " - prior = " + str(p) + " - data id = " + str(d))
                         results.append(executor.submit(k_fold_min_DCF, D, LTR, 5, c, p, (), transformers[d], transf_args[d]))
+#                         mindcf[d, i, j] = k_fold_min_DCF(
+#                             D, LTR, K=5, 
+#                             Classifier=c, 
+#                             prior=p, 
+#                             class_args=(), 
+#                             transformers=transformers[d], 
+#                             transf_args=transf_args[d]
+#                         )
                         # print("min_DCF = " + str(mindcf[i, j]))
             for i, r in enumerate(tqdm(results)):
                 mindcf[numpy.unravel_index(i, mindcf.shape, 'C')] = round(r.result(), 3)
@@ -321,10 +329,10 @@ if __name__ == '__main__':
         numpy.save('./data/minDCF_LogReg_lamb.npy', mindcf)
 
     for d in range(len(data)):
-        for i in range(mindcf[d].shape[0]):
+        for i in range(mindcf[d].shape[0] // 2):
             plt.figure()
             for j, p in enumerate(priors):
-                plt.plot(lamb, mindcf[d, i, j], label='minDCF (π = ' + str(p) + ')')
+                plt.plot(lamb, mindcf[d, i + 1, j], label='minDCF (π = ' + str(p) + ')')
             plt.xlabel('λ')
             plt.ylabel('min DCF')
             plt.legend()
